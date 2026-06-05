@@ -330,8 +330,22 @@ def assemble(chapters, state, settings):
 
 def write_outputs(items, metas, report, settings, out: Path):
     out.mkdir(parents=True, exist_ok=True)
+    secret = str(settings.get("secret_path", "") or "").strip("/")
+    pub = (out / secret) if secret else out
+    pub.mkdir(parents=True, exist_ok=True)
+    if secret:
+        # quitar copias públicas viejas en la raíz y bloquear buscadores
+        for _stale in ("feed.xml", "data.json", "data.js", "dashboard.html"):
+            try:
+                (out / _stale).unlink()
+            except FileNotFoundError:
+                pass
+        (out / "robots.txt").write_text("User-agent: *\nDisallow: /\n", encoding="utf-8")
+        (out / "index.html").write_text(
+            "<!doctype html><meta name=\"robots\" content=\"noindex\"><title>.</title>\n", encoding="utf-8")
     site = settings.get("site_url", "").rstrip("/")
-    feed_url = f"{site}/feed.xml" if site else "urn:manga-feed"
+    base = f"{site}/{secret}" if (site and secret) else (site or "")
+    feed_url = f"{base}/feed.xml" if base else "urn:manga-feed"
 
     fg = FeedGenerator()
     fg.id(feed_url)
@@ -349,13 +363,15 @@ def write_outputs(items, metas, report, settings, out: Path):
         fe.link(href=it["url"])
         fe.pubDate(it["eff"])
         fe.description(f"[{it.get('source','')}] {it['series']} — {it['label']}")
-    (out / "feed.xml").write_bytes(fg.rss_str(pretty=True))
+    (pub / "feed.xml").write_bytes(fg.rss_str(pretty=True))
 
     # data.json para el panel de progreso
     data = [{"id": m["id"], "name": m.get("series"), "source": m.get("source"),
              "latest": m.get("latest"), "total": m.get("total"), "url": m.get("url")}
             for m in metas]
-    (out / "data.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    (pub / "data.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    # Copia como JS para abrir el panel localmente con doble clic (sin servidor)
+    (pub / "data.js").write_text("window.SERIES_DATA = " + json.dumps(data, ensure_ascii=False) + ";", encoding="utf-8")
 
     ok = sum(1 for r in report if r[3] == "ok")
     rows = "\n".join(
@@ -364,7 +380,7 @@ def write_outputs(items, metas, report, settings, out: Path):
         for (s, src, n, status) in sorted(report, key=lambda r: (r[1], str(r[0]).lower()))
     )
     updated = now_utc().strftime("%Y-%m-%d %H:%M UTC")
-    (out / "index.html").write_text(f"""<!doctype html>
+    (pub / "index.html").write_text(f"""<!doctype html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{settings.get('feed_title','Feed de capítulos')}</title>

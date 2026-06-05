@@ -8,6 +8,7 @@
 
 settings:
   site_url: "https://alex19880.github.io/feed"  # tu GitHub Pages
+  secret_path: "s-bc954f33df291bf7"   # carpeta secreta para el feed (privacidad por URL oculta)
   feed_title: "Mis Mangas y Novelas - Capítulos nuevos"
   feed_description: "Capítulos nuevos de las series que sigo (MangaDex + Novelcool)"
   max_items: 100            # nº de capítulos que muestra el feed combinado

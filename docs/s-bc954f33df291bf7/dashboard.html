@@ -40,8 +40,7 @@
 </head>
 <body>
   <h1>📊 Progreso de lectura</h1>
-  <div class="muted">Tu avance se guarda en <b>este navegador</b>. Usa Exportar para respaldarlo o pasarlo a otro dispositivo. ·
-    <a href="index.html">← feed / estado</a></div>
+  <div class="muted">Tu avance se guarda en <b>este navegador</b>. Usa Exportar para respaldarlo o pasarlo a otro dispositivo.</div>
 
   <div class="stats" id="stats"></div>
 
@@ -72,13 +71,15 @@
   <div id="list"></div>
   <footer id="foot"></footer>
 
+<!-- data.js lo genera el script para abrir el panel localmente con doble clic (sin servidor) -->
+<script src="data.js" onerror="window.__noDataJs=true"></script>
 <script>
 const PROG_KEY="manga_progress", PREF_KEY="manga_prefs";
 let DATA=[], prog=load(PROG_KEY), pref=Object.assign({q:"",fstatus:"all",fsource:"all",sort:"behind"}, load(PREF_KEY));
 
 function load(k){ try{ return JSON.parse(localStorage.getItem(k))||{} }catch{ return {} } }
 function save(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
-function fmtNum(n){ if(n==null) return "?"; return Number.isInteger(n)? String(n) : String(n); }
+function fmtNum(n){ if(n==null) return "?"; return String(n); }
 function read(id){ return Number(prog[id]||0); }
 function statusOf(d){ const r=read(d.id), L=d.latest;
   if(L==null) return r>0?"prog":"cero";
@@ -110,7 +111,6 @@ function applyFilters(){
 }
 
 function render(){
-  // stats
   let dia=0,proggn=0,cero=0,pend=0;
   DATA.forEach(d=>{ const s=statusOf(d); if(s==="dia")dia++; else if(s==="prog")proggn++; else cero++;
     if(d.latest!=null) pend += Math.max(0, d.latest-read(d.id)); });
@@ -119,7 +119,7 @@ function render(){
      <div class="stat"><b>${proggn}</b>en progreso</div>
      <div class="stat"><b>${cero}</b>sin empezar</div>
      <div class="stat"><b>${dia}</b>al día</div>
-     <div class="stat"><b class="nums">${pend}</b>capítulos pendientes</div>`;
+     <div class="stat"><b class="nums">${Math.round(pend)}</b>capítulos pendientes</div>`;
 
   const list=document.getElementById("list");
   const arr=applyFilters();
@@ -139,10 +139,10 @@ function render(){
           ${d.url?` · <a href="${d.url}" target="_blank" rel="noopener">abrir serie ↗</a>`:''}</div>
       </div>
       <div class="ctl">
-        <button data-a="dec" data-id="${d.id}">−</button>
-        <input type="number" min="0" data-a="set" data-id="${d.id}" data-l="${L==null?'':L}" value="${r}">
-        <button data-a="inc" data-id="${d.id}" data-l="${L==null?'':L}">+</button>
-        <button data-a="dia" data-id="${d.id}" data-l="${L==null?'':L}" title="Marcar al día">✓</button>
+        <button data-a="dec" data-id="${encodeURIComponent(d.id)}">−</button>
+        <input type="number" min="0" data-a="set" data-id="${encodeURIComponent(d.id)}" data-l="${L==null?'':L}" value="${r}">
+        <button data-a="inc" data-id="${encodeURIComponent(d.id)}" data-l="${L==null?'':L}">+</button>
+        <button data-a="dia" data-id="${encodeURIComponent(d.id)}" data-l="${L==null?'':L}" title="Marcar al día">✓</button>
       </div>
       <div class="track"><div class="fill ${st==='dia'?'done':''}" style="width:${pct}%"></div></div>
     </div>`;
@@ -153,14 +153,14 @@ function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<'
 
 document.getElementById("list").addEventListener("click", e=>{
   const b=e.target.closest("button"); if(!b) return;
-  const id=b.dataset.id, L=b.dataset.l===""?null:Number(b.dataset.l), a=b.dataset.a;
+  const id=decodeURIComponent(b.dataset.id), L=b.dataset.l===""?null:Number(b.dataset.l), a=b.dataset.a;
   if(a==="inc") setRead(id, read(id)+1, L);
   else if(a==="dec") setRead(id, read(id)-1, L);
   else if(a==="dia" && L!=null) setRead(id, Math.ceil(L), L);
 });
 document.getElementById("list").addEventListener("change", e=>{
   const i=e.target.closest('input[data-a="set"]'); if(!i) return;
-  setRead(i.dataset.id, Math.floor(Number(i.value)||0), i.dataset.l===""?null:Number(i.dataset.l));
+  setRead(decodeURIComponent(i.dataset.id), Math.floor(Number(i.value)||0), i.dataset.l===""?null:Number(i.dataset.l));
 });
 function bindPref(idp, key){ const el=document.getElementById(idp); el.value=pref[key];
   el.addEventListener("input", ()=>{ pref[key]=el.value; save(PREF_KEY,pref); render(); }); }
@@ -178,10 +178,13 @@ document.getElementById("impf").onchange=ev=>{
       alert("Progreso importado."); }catch{ alert("Archivo inválido."); } }; fr.readAsText(f);
 };
 
-fetch("data.json?t="+Date.now()).then(r=>r.json()).then(d=>{ DATA=d; render();
-  document.getElementById("foot").textContent=`${d.length} series cargadas desde data.json (se actualiza cada 12 h).`;
-}).catch(e=>{ document.getElementById("list").innerHTML=
-  '<div class="empty">No se pudo cargar data.json todavía. Corre el workflow una vez y recarga.</div>'; });
+function boot(d){ DATA=Array.isArray(d)?d:[]; render();
+  document.getElementById("foot").textContent = DATA.length+" series cargadas."; }
+function noData(){ document.getElementById("list").innerHTML=
+  '<div class="empty">No hay datos todavía. Ejecuta <b>actualizar.bat</b> y vuelve a abrir el panel.</div>'; }
+
+if (Array.isArray(window.SERIES_DATA)) boot(window.SERIES_DATA);            // modo local (data.js)
+else fetch("data.json?t="+Date.now()).then(r=>r.json()).then(boot).catch(noData); // modo hosted
 </script>
 </body>
 </html>
