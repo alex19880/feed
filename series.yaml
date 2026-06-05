@@ -7,7 +7,7 @@
 # =============================================================================
 
 settings:
-  site_url: "https://github.com/alex19880/feed"  # tu GitHub Pages
+  site_url: "https://alex19880.github.io/feed"  # tu GitHub Pages
   feed_title: "Mis Mangas y Novelas - Capítulos nuevos"
   feed_description: "Capítulos nuevos de las series que sigo (MangaDex + Novelcool)"
   max_items: 100            # nº de capítulos que muestra el feed combinado
