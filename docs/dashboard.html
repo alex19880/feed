@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>📊 Progreso de lectura</title>
+<style>
+  :root{ color-scheme: light dark; --b:#8883; --accent:#6c63ff; }
+  *{ box-sizing:border-box; }
+  body{ font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; max-width:1000px;
+        margin:0 auto; padding:18px; line-height:1.45; }
+  h1{ font-size:1.4rem; margin:0 0 4px; }
+  a{ color:var(--accent); }
+  .muted{ color:#888; font-size:.85rem; }
+  .bar-top{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:14px 0; }
+  input,select,button{ font:inherit; padding:7px 10px; border:1px solid var(--b);
+        border-radius:8px; background:transparent; color:inherit; }
+  button{ cursor:pointer; }
+  #q{ flex:1; min-width:160px; }
+  .stats{ display:flex; gap:10px; flex-wrap:wrap; margin:10px 0 4px; }
+  .stat{ border:1px solid var(--b); border-radius:10px; padding:8px 12px; font-size:.85rem; }
+  .stat b{ font-size:1.15rem; display:block; }
+  .card{ border:1px solid var(--b); border-radius:12px; padding:12px 14px; margin:10px 0;
+         display:grid; grid-template-columns:1fr auto; gap:6px 12px; align-items:center; }
+  .title{ font-weight:600; }
+  .src{ font-size:.7rem; padding:1px 7px; border-radius:20px; border:1px solid var(--b); margin-left:6px; vertical-align:middle; }
+  .src.MangaDex{ background:#ff674722; } .src.ManhwaWeb{ background:#6c63ff22; } .src.Novelcool{ background:#0aa22; }
+  .track{ grid-column:1/-1; background:var(--b); height:10px; border-radius:6px; overflow:hidden; }
+  .fill{ height:100%; background:var(--accent); width:0; transition:width .2s; }
+  .fill.done{ background:#1aa34a; }
+  .ctl{ display:flex; align-items:center; gap:6px; justify-self:end; }
+  .ctl input{ width:64px; text-align:center; }
+  .ctl button{ width:34px; padding:6px 0; }
+  .pill{ font-size:.75rem; padding:2px 8px; border-radius:20px; }
+  .pill.dia{ background:#1aa34a33; } .pill.prog{ background:#e8a13333; } .pill.cero{ background:#8882; }
+  .nums{ font-variant-numeric:tabular-nums; }
+  .empty{ text-align:center; color:#888; padding:40px; }
+  footer{ margin:24px 0; font-size:.8rem; color:#888; }
+</style>
+</head>
+<body>
+  <h1>📊 Progreso de lectura</h1>
+  <div class="muted">Tu avance se guarda en <b>este navegador</b>. Usa Exportar para respaldarlo o pasarlo a otro dispositivo. ·
+    <a href="index.html">← feed / estado</a></div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="bar-top">
+    <input id="q" placeholder="Buscar serie…">
+    <select id="fstatus">
+      <option value="all">Todas</option>
+      <option value="prog">En progreso</option>
+      <option value="cero">Sin empezar</option>
+      <option value="dia">Al día</option>
+    </select>
+    <select id="fsource">
+      <option value="all">Todas las fuentes</option>
+      <option>MangaDex</option><option>ManhwaWeb</option><option>Novelcool</option>
+    </select>
+    <select id="sort">
+      <option value="behind">Orden: más atrasadas</option>
+      <option value="name">Orden: nombre</option>
+      <option value="pct">Orden: % avance</option>
+      <option value="latest">Orden: último cap.</option>
+      <option value="source">Orden: fuente</option>
+    </select>
+    <button id="exp">⬇ Exportar</button>
+    <button id="imp">⬆ Importar</button>
+    <input id="impf" type="file" accept="application/json" hidden>
+  </div>
+
+  <div id="list"></div>
+  <footer id="foot"></footer>
+
+<script>
+const PROG_KEY="manga_progress", PREF_KEY="manga_prefs";
+let DATA=[], prog=load(PROG_KEY), pref=Object.assign({q:"",fstatus:"all",fsource:"all",sort:"behind"}, load(PREF_KEY));
+
+function load(k){ try{ return JSON.parse(localStorage.getItem(k))||{} }catch{ return {} } }
+function save(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
+function fmtNum(n){ if(n==null) return "?"; return Number.isInteger(n)? String(n) : String(n); }
+function read(id){ return Number(prog[id]||0); }
+function statusOf(d){ const r=read(d.id), L=d.latest;
+  if(L==null) return r>0?"prog":"cero";
+  if(r<=0) return "cero"; if(r>=L) return "dia"; return "prog"; }
+
+function setRead(id, val, latest){
+  val = Math.max(0, val);
+  if(latest!=null) val = Math.min(val, Math.ceil(latest));
+  if(val===0) delete prog[id]; else prog[id]=val;
+  save(PROG_KEY, prog); render();
+}
+
+function applyFilters(){
+  const q=pref.q.trim().toLowerCase();
+  let arr = DATA.filter(d=>{
+    if(pref.fsource!=="all" && d.source!==pref.fsource) return false;
+    if(pref.fstatus!=="all" && statusOf(d)!==pref.fstatus) return false;
+    if(q && !(d.name||"").toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const behind=d=> (d.latest==null?-1:Math.max(0,d.latest-read(d.id)));
+  const pct=d=> (d.latest? read(d.id)/d.latest : 0);
+  const S={ behind:(a,b)=>behind(b)-behind(a),
+            name:(a,b)=>(a.name||"").localeCompare(b.name||""),
+            pct:(a,b)=>pct(a)-pct(b),
+            latest:(a,b)=>(b.latest||0)-(a.latest||0),
+            source:(a,b)=>(a.source||"").localeCompare(b.source||"")||(a.name||"").localeCompare(b.name||"") };
+  return arr.sort(S[pref.sort]||S.behind);
+}
+
+function render(){
+  // stats
+  let dia=0,proggn=0,cero=0,pend=0;
+  DATA.forEach(d=>{ const s=statusOf(d); if(s==="dia")dia++; else if(s==="prog")proggn++; else cero++;
+    if(d.latest!=null) pend += Math.max(0, d.latest-read(d.id)); });
+  document.getElementById("stats").innerHTML =
+    `<div class="stat"><b>${DATA.length}</b>series</div>
+     <div class="stat"><b>${proggn}</b>en progreso</div>
+     <div class="stat"><b>${cero}</b>sin empezar</div>
+     <div class="stat"><b>${dia}</b>al día</div>
+     <div class="stat"><b class="nums">${pend}</b>capítulos pendientes</div>`;
+
+  const list=document.getElementById("list");
+  const arr=applyFilters();
+  if(!arr.length){ list.innerHTML='<div class="empty">Sin resultados.</div>'; return; }
+  list.innerHTML = arr.map(d=>{
+    const r=read(d.id), L=d.latest, st=statusOf(d);
+    const pct = L? Math.min(100, Math.round(r/L*100)) : 0;
+    const faltan = (L!=null)? Math.max(0, +(L-r).toFixed(2)) : null;
+    const pill = st==="dia"?'<span class="pill dia">Al día</span>'
+               : st==="prog"?'<span class="pill prog">En progreso</span>'
+               : '<span class="pill cero">Sin empezar</span>';
+    return `<div class="card">
+      <div>
+        <span class="title">${escapeHtml(d.name||d.id)}</span>
+        <span class="src ${d.source}">${d.source}</span>
+        <div class="muted nums">Cap. ${fmtNum(r)} / ${fmtNum(L)} · ${pct}% ${faltan!=null?`· faltan ${faltan}`:''} ${pill}
+          ${d.url?` · <a href="${d.url}" target="_blank" rel="noopener">abrir serie ↗</a>`:''}</div>
+      </div>
+      <div class="ctl">
+        <button data-a="dec" data-id="${d.id}">−</button>
+        <input type="number" min="0" data-a="set" data-id="${d.id}" data-l="${L==null?'':L}" value="${r}">
+        <button data-a="inc" data-id="${d.id}" data-l="${L==null?'':L}">+</button>
+        <button data-a="dia" data-id="${d.id}" data-l="${L==null?'':L}" title="Marcar al día">✓</button>
+      </div>
+      <div class="track"><div class="fill ${st==='dia'?'done':''}" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join("");
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+document.getElementById("list").addEventListener("click", e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  const id=b.dataset.id, L=b.dataset.l===""?null:Number(b.dataset.l), a=b.dataset.a;
+  if(a==="inc") setRead(id, read(id)+1, L);
+  else if(a==="dec") setRead(id, read(id)-1, L);
+  else if(a==="dia" && L!=null) setRead(id, Math.ceil(L), L);
+});
+document.getElementById("list").addEventListener("change", e=>{
+  const i=e.target.closest('input[data-a="set"]'); if(!i) return;
+  setRead(i.dataset.id, Math.floor(Number(i.value)||0), i.dataset.l===""?null:Number(i.dataset.l));
+});
+function bindPref(idp, key){ const el=document.getElementById(idp); el.value=pref[key];
+  el.addEventListener("input", ()=>{ pref[key]=el.value; save(PREF_KEY,pref); render(); }); }
+bindPref("q","q"); bindPref("fstatus","fstatus"); bindPref("fsource","fsource"); bindPref("sort","sort");
+
+document.getElementById("exp").onclick=()=>{
+  const blob=new Blob([JSON.stringify(prog,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="progreso-lectura.json"; a.click();
+};
+document.getElementById("imp").onclick=()=>document.getElementById("impf").click();
+document.getElementById("impf").onchange=ev=>{
+  const f=ev.target.files[0]; if(!f) return; const fr=new FileReader();
+  fr.onload=()=>{ try{ const o=JSON.parse(fr.result); Object.assign(prog,o); save(PROG_KEY,prog); render();
+      alert("Progreso importado."); }catch{ alert("Archivo inválido."); } }; fr.readAsText(f);
+};
+
+fetch("data.json?t="+Date.now()).then(r=>r.json()).then(d=>{ DATA=d; render();
+  document.getElementById("foot").textContent=`${d.length} series cargadas desde data.json (se actualiza cada 12 h).`;
+}).catch(e=>{ document.getElementById("list").innerHTML=
+  '<div class="empty">No se pudo cargar data.json todavía. Corre el workflow una vez y recarga.</div>'; });
+</script>
+</body>
+</html>

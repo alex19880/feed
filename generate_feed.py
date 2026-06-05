@@ -2,17 +2,17 @@
 """
 generate_feed.py
 ----------------
-Genera UN feed RSS combinado con los capítulos más recientes de todas las
-series configuradas en series.yaml, desde tres fuentes:
+Genera, para las series de series.yaml:
+  - docs/feed.xml   : UN feed RSS combinado con los capítulos más recientes.
+  - docs/index.html : panel de estado de las fuentes.
+  - docs/data.json  : metadatos por serie (último capítulo, total, URL) que
+                      consume el panel de progreso (docs/dashboard.html).
 
-  - MangaDex  -> API oficial (https://api.mangadex.org)            [fecha real]
+Fuentes:
+  - MangaDex  -> API oficial (https://api.mangadex.org)             [fecha real]
+  - ManhwaWeb -> API interna (manhwawebbackend ... railway.app)     [fecha real]
   - Novelcool -> scraping HTML por patrón de URL /chapter/<slug>/<id>
-  - ManhwaWeb -> API interna (manhwawebbackend ... railway.app)    [fecha real]
 
-Guarda un estado "first-seen" (state.json) para deduplicar y fechar de forma
-estable los capítulos sin fecha. Publica docs/feed.xml + docs/index.html.
-
-Pensado para GitHub Actions + GitHub Pages.
 Dependencias: requests, beautifulsoup4, feedgen, PyYAML, lxml
 """
 from __future__ import annotations
@@ -34,9 +34,10 @@ from feedgen.feed import FeedGenerator
 UA = "Mozilla/5.0 (compatible; MangaFeedBot/1.0; +https://github.com)"
 MANGADEX_API = "https://api.mangadex.org"
 MANHWAWEB_API = "https://manhwawebbackend-production.up.railway.app"
+_CONTENT_RATINGS = ("safe", "suggestive", "erotica", "pornographic")
 
 
-# --------------------------- utilidades de fecha --------------------------- #
+# --------------------------- utilidades --------------------------- #
 def now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -50,21 +51,27 @@ def parse_iso(v: str) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
-def from_ms(ms) -> str | None:
+def from_ms(ms):
     try:
         return iso(datetime.fromtimestamp(int(ms) / 1000, tz=timezone.utc))
     except Exception:  # noqa: BLE001
         return None
 
 
-# --------------------------- HTTP --------------------------- #
+def to_num(x):
+    try:
+        return float(x)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def make_session() -> requests.Session:
     s = requests.Session()
     s.headers.update({"User-Agent": UA, "Accept-Language": "es,en;q=0.8"})
     return s
 
 
-def http_get(session: requests.Session, url: str, params=None, timeout: int = 25):
+def http_get(session, url, params=None, timeout=25):
     last = None
     for attempt in range(1, 4):
         try:
@@ -78,7 +85,7 @@ def http_get(session: requests.Session, url: str, params=None, timeout: int = 25
     raise RuntimeError(f"GET {url}: {last}")
 
 
-# ===================== Adapter: MangaDex (API) ===================== #
+# ===================== MangaDex ===================== #
 def pick_title(attr_title, alt_titles, langs):
     pool = {}
     if isinstance(attr_title, dict):
@@ -120,45 +127,75 @@ def parse_mangadex_response(data_list, langs):
     return out
 
 
-def mangadex_chapters(session, manga_id, langs, limit):
-    params = [("limit", limit), ("manga", manga_id), ("order[publishAt]", "desc"),
-              ("includes[]", "manga"), ("includes[]", "scanlation_group")]
-    for cr in ("safe", "suggestive", "erotica", "pornographic"):
+def _mangadex_params(manga_id, langs, order_key, order_dir, limit):
+    params = [("limit", limit), ("manga", manga_id), (f"order[{order_key}]", order_dir),
+              ("includes[]", "manga")]
+    for cr in _CONTENT_RATINGS:
         params.append(("contentRating[]", cr))
     for lg in langs:
         params.append(("translatedLanguage[]", lg))
-    r = http_get(session, f"{MANGADEX_API}/chapter", params=params)
-    return parse_mangadex_response(r.json().get("data", []), langs)
+    return params
 
 
-# ===================== Adapter: ManhwaWeb (API interna) ===================== #
+def mangadex_series(session, manga_id, langs, limit):
+    # capítulos recientes (para el feed)
+    r = http_get(session, f"{MANGADEX_API}/chapter",
+                 params=_mangadex_params(manga_id, langs, "publishAt", "desc", limit))
+    chapters = parse_mangadex_response(r.json().get("data", []), langs)
+    # último capítulo por número (para el panel)
+    rm = http_get(session, f"{MANGADEX_API}/chapter",
+                  params=_mangadex_params(manga_id, langs, "chapter", "desc", 1))
+    j = rm.json()
+    top = (j.get("data") or [])
+    latest, series = None, (chapters[0]["series"] if chapters else "MangaDex")
+    if top:
+        a = top[0].get("attributes", {}) or {}
+        latest = to_num(a.get("chapter"))
+        for rel in top[0].get("relationships", []):
+            if rel.get("type") == "manga":
+                series = pick_title(rel.get("attributes", {}).get("title"),
+                                    rel.get("attributes", {}).get("altTitles"), langs)
+    meta = {"id": manga_id, "series": series, "source": "MangaDex", "latest": latest,
+            "total": j.get("total"), "url": f"https://mangadex.org/title/{manga_id}"}
+    return chapters, meta
+
+
+# ===================== ManhwaWeb ===================== #
 def parse_manhwaweb_response(data, limit):
-    """Convierte el JSON de /manhwa/see/<slug> en items (sin red)."""
     series = (data.get("the_real_name") or data.get("name_esp")
               or data.get("name_raw") or data.get("_id") or "ManhwaWeb")
-    chs = data.get("chapters") or []
-    chs = sorted(chs, key=lambda c: c.get("create", 0) or 0, reverse=True)[:limit]
+    chs = sorted(data.get("chapters") or [], key=lambda c: c.get("create", 0) or 0, reverse=True)[:limit]
     out = []
     for c in chs:
         link = c.get("link")
         if not link:
             continue
         num = c.get("chapter")
-        label = f"Cap. {num}" if num is not None else "Capítulo"
-        out.append({"series": series, "label": label, "url": link,
-                    "date": from_ms(c.get("create")), "guid": link, "source": "ManhwaWeb"})
+        out.append({"series": series, "label": f"Cap. {num}" if num is not None else "Capítulo",
+                    "url": link, "date": from_ms(c.get("create")), "guid": link, "source": "ManhwaWeb"})
     return out
 
 
-def manhwaweb_chapters(session, slug, limit):
-    r = http_get(session, f"{MANHWAWEB_API}/manhwa/see/{slug}")
-    return parse_manhwaweb_response(r.json(), limit)
+def manhwaweb_meta(data, slug):
+    chs = data.get("chapters") or []
+    nums = [n for n in (to_num(c.get("chapter")) for c in chs) if n is not None]
+    series = (data.get("the_real_name") or data.get("name_esp")
+              or data.get("name_raw") or slug)
+    return {"id": slug, "series": series, "source": "ManhwaWeb",
+            "latest": max(nums) if nums else None, "total": len(chs),
+            "url": f"https://manhwaweb.com/manhwa/{slug}"}
 
 
-# ===================== Adapter: Novelcool (HTML) ===================== #
+def manhwaweb_series(session, slug, limit):
+    data = http_get(session, f"{MANHWAWEB_API}/manhwa/see/{slug}").json()
+    return parse_manhwaweb_response(data, limit), manhwaweb_meta(data, slug)
+
+
+# ===================== Novelcool ===================== #
 _MONTHS = {m: i for i, m in enumerate(
     ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], 1)}
 _CHAP_PATH = re.compile(r"/chapter/.+/\d+")
+_NUM_RE = re.compile(r"(\d+(?:\.\d+)?)")
 
 
 def parse_novelcool_date(text: str):
@@ -166,8 +203,7 @@ def parse_novelcool_date(text: str):
     m = re.search(r"([A-Z][a-z]{2})\s+(\d{1,2}),\s*(\d{4})", text)
     if m and m.group(1) in _MONTHS:
         try:
-            return iso(datetime(int(m.group(3)), _MONTHS[m.group(1)],
-                                int(m.group(2)), tzinfo=timezone.utc))
+            return iso(datetime(int(m.group(3)), _MONTHS[m.group(1)], int(m.group(2)), tzinfo=timezone.utc))
         except Exception:  # noqa: BLE001
             pass
     rel = re.search(r"(\d+)\s*(hora|hour|min|d[ií]a|day|week|semana|mes|month)", text, re.I)
@@ -188,13 +224,9 @@ def parse_novelcool_date(text: str):
     return None
 
 
-def parse_novelcool_html(html: str, base_url: str, name: str, limit: int):
-    soup = BeautifulSoup(html, "lxml")
-    series = name
-    h1 = soup.select_one("h1")
-    if h1 and h1.get_text(strip=True):
-        series = h1.get_text(strip=True)
-    out, seen = [], set()
+def _novelcool_links(soup, base_url):
+    """Devuelve [(label, full_url, parent_text)] de los enlaces de capítulo."""
+    res, seen = [], set()
     for a in soup.select('a[href*="/chapter/"]'):
         href = a.get("href", "")
         if not _CHAP_PATH.search(href):
@@ -202,52 +234,77 @@ def parse_novelcool_html(html: str, base_url: str, name: str, limit: int):
         full = urljoin(base_url, href)
         if full in seen:
             continue
-        labelsrc = (a.get("title") or a.get_text(strip=True) or "").strip()
-        if not re.search(r"(cap[ií]tulo|chapter|\bch\b|\d)", labelsrc, re.I):
+        label = (a.get("title") or a.get_text(strip=True) or "").strip()
+        if not re.search(r"(cap[ií]tulo|chapter|\bch\b|\d)", label, re.I):
             continue
         seen.add(full)
         parent = a.find_parent()
-        ctx = parent.get_text(" ", strip=True) if parent else labelsrc
-        date = parse_novelcool_date(ctx)
-        label = re.sub(r"\s*(Nuevo|New)\b.*$", "", labelsrc, flags=re.I).strip() or "Capítulo"
-        out.append({"series": series, "label": label, "url": full,
-                    "date": date, "guid": full, "source": "Novelcool"})
+        res.append((label, full, parent.get_text(" ", strip=True) if parent else label))
+    return res
+
+
+def _novelcool_series_name(soup, fallback):
+    h1 = soup.select_one("h1")
+    return h1.get_text(strip=True) if h1 and h1.get_text(strip=True) else fallback
+
+
+def parse_novelcool_html(html, base_url, name, limit):
+    soup = BeautifulSoup(html, "lxml")
+    series = _novelcool_series_name(soup, name)
+    out = []
+    for label, full, ctx in _novelcool_links(soup, base_url):
+        clean = re.sub(r"\s*(Nuevo|New)\b.*$", "", label, flags=re.I).strip() or "Capítulo"
+        out.append({"series": series, "label": clean, "url": full,
+                    "date": parse_novelcool_date(ctx), "guid": full, "source": "Novelcool"})
         if len(out) >= limit:
             break
     return out
 
 
-def novelcool_chapters(session, url, name, limit):
-    r = http_get(session, url)
-    return parse_novelcool_html(r.text, url, name, limit)
+def novelcool_meta(html, url, name):
+    soup = BeautifulSoup(html, "lxml")
+    series = _novelcool_series_name(soup, name)
+    links = _novelcool_links(soup, url)
+    nums = []
+    for label, _full, _ctx in links:
+        m = _NUM_RE.search(label)
+        if m:
+            nums.append(float(m.group(1)))
+    return {"id": url, "series": series, "source": "Novelcool",
+            "latest": max(nums) if nums else None, "total": len(links), "url": url}
 
 
-# ===================== Ensamblado del feed ===================== #
+def novelcool_series(session, url, name, limit):
+    html = http_get(session, url).text
+    return parse_novelcool_html(html, url, name, limit), novelcool_meta(html, url, name)
+
+
+# ===================== Ensamblado ===================== #
 def collect(config):
     s = make_session()
     st = config.get("settings", {})
     langs = st.get("mangadex_languages", ["es-la", "es", "en"])
     pern = int(st.get("per_series_fetch", 5))
-    chapters, report = [], []
+    chapters, metas, report = [], [], []
 
-    def run(label_src, key, fn):
+    def run(src, key, fn, identf):
         for e in (config.get(key) or []):
-            ident = e.get("name") or e.get("id") or e.get("slug") or e.get("url")
+            ident = identf(e)
             try:
-                chs = fn(e)
+                chs, meta = fn(e)
                 chapters.extend(chs)
-                series = chs[0]["series"] if chs else ident
-                report.append((series, label_src, len(chs), "ok"))
-                print(f"✅ {label_src} {series}: {len(chs)}")
+                metas.append(meta)
+                report.append((meta.get("series") or ident, src, len(chs), "ok"))
+                print(f"✅ {src} {meta.get('series') or ident}: {len(chs)}")
                 time.sleep(0.3)
             except Exception as ex:  # noqa: BLE001
-                report.append((ident, label_src, 0, f"error: {ex}"))
-                print(f"❌ {label_src} {ident}: {ex}", file=sys.stderr)
+                report.append((ident, src, 0, f"error: {ex}"))
+                print(f"❌ {src} {ident}: {ex}", file=sys.stderr)
 
-    run("MangaDex", "mangadex", lambda e: mangadex_chapters(s, e["id"], langs, pern))
-    run("ManhwaWeb", "manhwaweb", lambda e: manhwaweb_chapters(s, e["slug"], pern))
-    run("Novelcool", "novelcool", lambda e: novelcool_chapters(s, e["url"], e.get("name", ""), pern))
-    return chapters, report
+    run("MangaDex", "mangadex", lambda e: mangadex_series(s, e["id"], langs, pern), lambda e: e.get("id"))
+    run("ManhwaWeb", "manhwaweb", lambda e: manhwaweb_series(s, e["slug"], pern), lambda e: e.get("slug"))
+    run("Novelcool", "novelcool", lambda e: novelcool_series(s, e["url"], e.get("name", ""), pern), lambda e: e.get("url"))
+    return chapters, metas, report
 
 
 def assemble(chapters, state, settings):
@@ -271,7 +328,7 @@ def assemble(chapters, state, settings):
     return items[:int(settings.get("max_items", 100))]
 
 
-def write_outputs(items, report, settings, out: Path):
+def write_outputs(items, metas, report, settings, out: Path):
     out.mkdir(parents=True, exist_ok=True)
     site = settings.get("site_url", "").rstrip("/")
     feed_url = f"{site}/feed.xml" if site else "urn:manga-feed"
@@ -294,6 +351,12 @@ def write_outputs(items, report, settings, out: Path):
         fe.description(f"[{it.get('source','')}] {it['series']} — {it['label']}")
     (out / "feed.xml").write_bytes(fg.rss_str(pretty=True))
 
+    # data.json para el panel de progreso
+    data = [{"id": m["id"], "name": m.get("series"), "source": m.get("source"),
+             "latest": m.get("latest"), "total": m.get("total"), "url": m.get("url")}
+            for m in metas]
+    (out / "data.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
     ok = sum(1 for r in report if r[3] == "ok")
     rows = "\n".join(
         f'<tr><td>{s}</td><td>{src}</td><td style="text-align:center">{n}</td>'
@@ -311,13 +374,15 @@ def write_outputs(items, report, settings, out: Path):
  h1{{font-size:1.5rem}} code{{background:#8882;padding:2px 6px;border-radius:4px}}
  table{{border-collapse:collapse;width:100%;font-size:.9rem;margin-top:16px}}
  th,td{{border-bottom:1px solid #8883;padding:6px 8px;text-align:left}}
- .sub{{background:#6c63ff;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;display:inline-block}}
+ .btn{{padding:10px 16px;border-radius:8px;text-decoration:none;display:inline-block;margin-right:8px}}
+ .sub{{background:#6c63ff;color:#fff}} .dash{{background:#0aa; color:#fff}}
  .meta{{color:#888;font-size:.85rem}}
 </style></head><body>
 <h1>📡 {settings.get('feed_title','Feed de capítulos')}</h1>
 <p class="meta">Actualizado: {updated} · {ok}/{len(report)} series OK · {len(items)} capítulos en el feed</p>
-<p><a class="sub" href="feed.xml">Suscribirse al feed RSS</a></p>
-<p>Copia esta URL en tu lector (Feedly, Inoreader, etc.):<br><code>{feed_url}</code></p>
+<p><a class="btn sub" href="feed.xml">Suscribirse al feed RSS</a>
+   <a class="btn dash" href="dashboard.html">📊 Panel de progreso de lectura</a></p>
+<p>URL del feed para tu lector:<br><code>{feed_url}</code></p>
 <table><thead><tr><th>Serie</th><th>Fuente</th><th>Caps</th><th>Estado</th></tr></thead>
 <tbody>{rows}</tbody></table>
 </body></html>
@@ -325,7 +390,7 @@ def write_outputs(items, report, settings, out: Path):
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Feed RSS combinado (MangaDex + ManhwaWeb + Novelcool).")
+    ap = argparse.ArgumentParser(description="Feed RSS combinado + datos de progreso.")
     ap.add_argument("--config", default="series.yaml")
     ap.add_argument("--output-dir", default="docs")
     ap.add_argument("--state", default="state.json")
@@ -336,13 +401,13 @@ def main() -> int:
     state_path = Path(args.state)
     state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {}
 
-    chapters, report = collect(config)
+    chapters, metas, report = collect(config)
     items = assemble(chapters, state, settings)
-    write_outputs(items, report, settings, Path(args.output_dir))
+    write_outputs(items, metas, report, settings, Path(args.output_dir))
     state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
     ok = sum(1 for r in report if r[3] == "ok")
-    print(f"\n📦 {ok}/{len(report)} series OK · {len(items)} capítulos → {args.output_dir}/feed.xml")
+    print(f"\n📦 {ok}/{len(report)} series OK · {len(items)} caps en feed · {len(metas)} en data.json")
     return 0
 
 
