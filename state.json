@@ -801,7 +801,7 @@
   },
   "c691f1fb-867b-401e-b8b5-34d3319307d3": {
     "first_seen": "2026-06-05T01:22:41.587206+00:00",
-    "series": "I Have a Slow Life in a Different World (I Wish)",
+    "series": "Slow Life In Another World (I Wish!)",
     "label": "Cap. 58 [en]",
     "url": "https://mangadex.org/chapter/c691f1fb-867b-401e-b8b5-34d3319307d3",
     "date": "2026-02-02T15:43:31+00:00",
@@ -809,7 +809,7 @@
   },
   "02269ad1-de1b-49c9-b3d4-debce8958007": {
     "first_seen": "2026-06-05T01:22:41.587206+00:00",
-    "series": "I Have a Slow Life in a Different World (I Wish)",
+    "series": "Slow Life In Another World (I Wish!)",
     "label": "Cap. 57 [en]",
     "url": "https://mangadex.org/chapter/02269ad1-de1b-49c9-b3d4-debce8958007",
     "date": "2026-02-02T15:43:19+00:00",
@@ -817,7 +817,7 @@
   },
   "741aee3f-9504-4e0b-98e6-f0eabccf0052": {
     "first_seen": "2026-06-05T01:22:41.587206+00:00",
-    "series": "I Have a Slow Life in a Different World (I Wish)",
+    "series": "Slow Life In Another World (I Wish!)",
     "label": "Cap. 59 [en]",
     "url": "https://mangadex.org/chapter/741aee3f-9504-4e0b-98e6-f0eabccf0052",
     "date": "2026-02-02T15:42:44+00:00",
@@ -825,7 +825,7 @@
   },
   "cc68b040-c887-4875-9798-1025d5770ecd": {
     "first_seen": "2026-06-05T01:22:41.587206+00:00",
-    "series": "I Have a Slow Life in a Different World (I Wish)",
+    "series": "Slow Life In Another World (I Wish!)",
     "label": "Cap. 58 — ¡Feroz Combate! ¡Red Line! [es-la]",
     "url": "https://mangadex.org/chapter/cc68b040-c887-4875-9798-1025d5770ecd",
     "date": "2026-02-01T20:07:48+00:00",
@@ -833,7 +833,7 @@
   },
   "8c6137d6-9301-4afc-8c66-d2d2bff90cf3": {
     "first_seen": "2026-06-05T01:22:41.587206+00:00",
-    "series": "I Have a Slow Life in a Different World (I Wish)",
+    "series": "Slow Life In Another World (I Wish!)",
     "label": "Cap. 57 — La verdadera identidad de Iris [es-la]",
     "url": "https://mangadex.org/chapter/8c6137d6-9301-4afc-8c66-d2d2bff90cf3",
     "date": "2026-01-31T07:42:23+00:00",
@@ -5221,6 +5221,30 @@
     "label": "Capitulo 214",
     "url": "https://es.novelcool.com/chapter/Capitulo-214/14114163/",
     "date": "2026-07-21T21:52:10.602233+00:00",
+    "source": "Novelcool"
+  },
+  "5fe22f9c-f8d9-48f8-8e81-362e2b9a96ad": {
+    "first_seen": "2026-07-23T02:58:34.716162+00:00",
+    "series": "My Broken Justice Weighs Love and Sin on the Scales in a Looping Parallel World",
+    "label": "Cap. 20 [en]",
+    "url": "https://mangadex.org/chapter/5fe22f9c-f8d9-48f8-8e81-362e2b9a96ad",
+    "date": "2026-07-22T14:06:11+00:00",
+    "source": "MangaDex"
+  },
+  "https://manhwaweb.com/leer/comic-un-gachita_1693932224199-211_01": {
+    "first_seen": "2026-07-23T02:58:34.716162+00:00",
+    "series": "Pick Me Up, Infinite Gacha",
+    "label": "Cap. 211",
+    "url": "https://manhwaweb.com/leer/comic-un-gachita_1693932224199-211_01",
+    "date": "2026-07-23T00:02:48.811000+00:00",
+    "source": "ManhwaWeb"
+  },
+  "https://es.novelcool.com/chapter/Capitulo-274/14123340/": {
+    "first_seen": "2026-07-23T02:58:34.716162+00:00",
+    "series": "Shangri-La Frontier: Shitty Games Hunter Challenges Godly Game",
+    "label": "Capitulo 274",
+    "url": "https://es.novelcool.com/chapter/Capitulo-274/14123340/",
+    "date": "2026-07-22T18:58:18.660028+00:00",
     "source": "Novelcool"
   }
 }
