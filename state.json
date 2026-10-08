@@ -5729,7 +5729,7 @@
   },
   "d13c6551-4a49-492c-81d2-7f594f3aad0e": {
     "first_seen": "2026-08-07T02:47:57.134707+00:00",
-    "series": "Not Enough to Take a Photo",
+    "series": "Not Worth Photographing",
     "label": "Cap. 41 [es-la]",
     "url": "https://mangadex.org/chapter/d13c6551-4a49-492c-81d2-7f594f3aad0e",
     "date": "2026-08-06T15:01:33+00:00",
@@ -6233,7 +6233,7 @@
   },
   "7830acf9-0a9d-4a56-96c6-223f53fb1052": {
     "first_seen": "2026-08-26T01:27:15.937407+00:00",
-    "series": "Not Enough to Take a Photo",
+    "series": "Not Worth Photographing",
     "label": "Cap. 42 [es-la]",
     "url": "https://mangadex.org/chapter/7830acf9-0a9d-4a56-96c6-223f53fb1052",
     "date": "2026-08-25T13:13:31+00:00",
@@ -7137,7 +7137,7 @@
   },
   "a5c6037f-c231-46ba-9628-a53154d7db0f": {
     "first_seen": "2026-09-22T16:34:07.445090+00:00",
-    "series": "Not Enough to Take a Photo",
+    "series": "Not Worth Photographing",
     "label": "Cap. 43 [es-la]",
     "url": "https://mangadex.org/chapter/a5c6037f-c231-46ba-9628-a53154d7db0f",
     "date": "2026-09-22T13:13:53+00:00",
@@ -7329,10 +7329,58 @@
   },
   "648316e8-a7b5-4065-9a57-0a304782901a": {
     "first_seen": "2026-10-07T18:39:01.872866+00:00",
-    "series": "Not Enough to Take a Photo",
+    "series": "Not Worth Photographing",
     "label": "Cap. 35 [en]",
     "url": "https://mangadex.org/chapter/648316e8-a7b5-4065-9a57-0a304782901a",
     "date": "2026-10-07T14:01:55+00:00",
+    "source": "MangaDex"
+  },
+  "8255138a-a81b-4759-a129-7797dcb493b6": {
+    "first_seen": "2026-10-08T05:11:15.126321+00:00",
+    "series": "Not Worth Photographing",
+    "label": "Cap. 36 [en]",
+    "url": "https://mangadex.org/chapter/8255138a-a81b-4759-a129-7797dcb493b6",
+    "date": "2026-10-08T01:52:22+00:00",
+    "source": "MangaDex"
+  },
+  "1a9abaca-a815-4a2d-b54a-ed33f089148e": {
+    "first_seen": "2026-10-08T05:11:15.126321+00:00",
+    "series": "The Apothecary Is Gonna Make This Ragged Elf Happy",
+    "label": "Cap. 23 [en]",
+    "url": "https://mangadex.org/chapter/1a9abaca-a815-4a2d-b54a-ed33f089148e",
+    "date": "2026-10-07T20:48:12+00:00",
+    "source": "MangaDex"
+  },
+  "a2c64de3-ad0a-409b-aa86-447a6eb89a76": {
+    "first_seen": "2026-10-08T05:11:15.126321+00:00",
+    "series": "The Apothecary Is Gonna Make This Ragged Elf Happy",
+    "label": "Cap. 22.5 [en]",
+    "url": "https://mangadex.org/chapter/a2c64de3-ad0a-409b-aa86-447a6eb89a76",
+    "date": "2026-10-07T20:47:41+00:00",
+    "source": "MangaDex"
+  },
+  "b50ae3e4-50cb-4423-926e-ab8605e22470": {
+    "first_seen": "2026-10-08T05:11:15.126321+00:00",
+    "series": "The Apothecary Is Gonna Make This Ragged Elf Happy",
+    "label": "Cap. 22 [en]",
+    "url": "https://mangadex.org/chapter/b50ae3e4-50cb-4423-926e-ab8605e22470",
+    "date": "2026-10-07T20:47:20+00:00",
+    "source": "MangaDex"
+  },
+  "4e6547df-563c-4f0b-aec4-711f335b14e3": {
+    "first_seen": "2026-10-08T05:11:15.126321+00:00",
+    "series": "The Apothecary Is Gonna Make This Ragged Elf Happy",
+    "label": "Cap. 21 [en]",
+    "url": "https://mangadex.org/chapter/4e6547df-563c-4f0b-aec4-711f335b14e3",
+    "date": "2026-10-07T20:46:47+00:00",
+    "source": "MangaDex"
+  },
+  "f4c11262-2448-419b-a501-7bc0a7bba795": {
+    "first_seen": "2026-10-08T05:11:15.126321+00:00",
+    "series": "My Girlfriend's Friend",
+    "label": "Cap. 134 [es-la]",
+    "url": "https://mangadex.org/chapter/f4c11262-2448-419b-a501-7bc0a7bba795",
+    "date": "2026-10-08T00:35:02+00:00",
     "source": "MangaDex"
   }
 }
